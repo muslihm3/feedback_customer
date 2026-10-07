@@ -257,6 +257,18 @@
   .gm-rev{border-top:1px solid var(--line);padding:10px 0;font-size:13.5px;line-height:1.5;}
   .gm-rev .gm-meta{font-size:12px;color:var(--ink-soft);margin-bottom:2px;}
   .gm-rev .gm-st{color:var(--crust);letter-spacing:1px;}
+
+  .gm-sub{font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-soft);margin:16px 0 6px;}
+  .gm-bar{display:grid;grid-template-columns:26px 1fr 78px;gap:8px;align-items:center;font-size:12px;margin:3px 0;}
+  .gm-track{height:8px;background:var(--line);border-radius:4px;overflow:hidden;}
+  .gm-fill{height:100%;background:var(--crust);}
+  .gm-bn{text-align:right;color:var(--ink-soft);}
+  .gm-tbl{width:100%;border-collapse:collapse;font-size:12.5px;}
+  .gm-tbl td{padding:3px 4px;border-top:1px solid var(--line);}
+  .gm-ul{margin:0;padding-left:18px;font-size:13px;line-height:1.5;}
+  .gm-ul .n{color:var(--ink-soft);font-size:12px;}
+  .gm-ex{font-size:12px;color:var(--ink-soft);margin:2px 0 6px;}
+  .gm-note2{font-size:12px;color:var(--ink-soft);margin-top:14px;border-top:1px solid var(--line);padding-top:8px;}
   .gm-note{font-size:12px;color:var(--ink-soft);margin:-4px 0 14px;}
   .gm-link{font-size:12.5px;color:var(--jam);text-decoration:none;font-weight:600;}
   .section-title{
@@ -670,6 +682,9 @@ const POS_THEMES = {
   "Amanah & bisa dipercaya": ["amanah","percaya","terpercaya"],
   "Tempat nyaman & bersih": ["nyaman","bersih","luas"],
   "Konsisten & dipertahankan": ["konsisten","pertahankan","dipertahankan"],
+  "Variasi produk banyak": ["varian","variasi","banyak pilihan","beragam","beraneka"],
+  "Harga terjangkau": ["terjangkau","murah","affordable","pas di kantong"],
+  "Cocok untuk oleh-oleh & kue ulang tahun": ["oleh-oleh","oleh2","oleh oleh","ultah","ulang tahun","hampers","bingkisan"],
 };
 const ISSUE_LABELS = {
   "Harga/Ongkir": "permintaan promo & sensitivitas harga",
@@ -677,11 +692,11 @@ const ISSUE_LABELS = {
   "Saran Menu/Varian Baru": "permintaan variasi menu baru",
   "Ketepatan Waktu/Pengiriman": "ketepatan waktu pengiriman/kedatangan",
   "Kualitas Rasa Produk": "konsistensi rasa pada item tertentu",
-  "Kebersihan/Fasilitas": "kebersihan & fasilitas",
+  "Kebersihan/Fasilitas": "fasilitas toko (tempat sempit, parkir) & kebersihan",
   "Kesalahan Pesanan/Miskom": "kesalahan pencatatan/komunikasi pesanan",
   "Kemasan/Packaging": "kemasan & packaging",
   "Pelayanan Karyawan/Sikap": "sikap & keramahan karyawan di toko",
-  "Ketersediaan Stok": "ketersediaan stok roti",
+  "Ketersediaan Stok": "ketersediaan stok, antrean & jam buka",
 };
 
 function renderAISummary(){
@@ -709,17 +724,16 @@ function renderAISummary(){
   // issue themes
   const issueCounts = {};
   fdata.forEach(d=>d.tags.forEach(t=>issueCounts[t]=(issueCounts[t]||0)+1));
-  // Google Maps (statis, tidak ikut filter periode)
-  const mapsRevs = GMAPS.outlets.flatMap(o=>o.reviews);
-  const mapsTotal = GMAPS.outlets.reduce((s,o)=>s+o.count,0);
-  const mapsAvg = GMAPS.outlets.reduce((s,o)=>s+o.rating*o.count,0)/mapsTotal;
+  // Google Maps (statis, seluruh ulasan sudah dianalisis; tidak ikut filter periode)
+  const mapsTotal = GMAPS.outlets.reduce((s,o)=>s+o.analyzed,0);
+  const mapsAvg = GMAPS.outlets.reduce((s,o)=>s+o.avg*o.analyzed,0)/mapsTotal;
+  const mapsFive = GMAPS.outlets.reduce((s,o)=>s+o.dist["5"],0);
+  const mapsLow = GMAPS.outlets.reduce((s,o)=>s+o.dist["1"]+o.dist["2"]+o.dist["3"],0);
   const mapsIssue = {}, mapsPos = {};
-  mapsRevs.forEach(r=>{
-    r.tags.forEach(t=>{mapsIssue[t]=(mapsIssue[t]||0)+1; issueCounts[t]=(issueCounts[t]||0)+1;});
-    const t = r.text.toLowerCase();
-    Object.entries(POS_THEMES).forEach(([label,kws])=>{ if(kws.some(kw=>t.includes(kw))) mapsPos[label]=(mapsPos[label]||0)+1; });
+  GMAPS.outlets.forEach(o=>{
+    Object.entries(o.tagCounts).forEach(([t,n])=>{ mapsIssue[t]=(mapsIssue[t]||0)+n; issueCounts[t]=(issueCounts[t]||0)+n; });
+    Object.entries(o.pos).forEach(([l,n])=>{ mapsPos[l]=(mapsPos[l]||0)+n; posCounts[l]=(posCounts[l]||0)+n; });
   });
-  Object.entries(mapsPos).forEach(([label,n])=>{ posCounts[label]=(posCounts[label]||0)+n; });
   const topPos2 = Object.entries(posCounts).sort((a,b)=>b[1]-a[1]).slice(0,5);
   const topIssues = Object.entries(issueCounts).sort((a,b)=>b[1]-a[1]).slice(0,5);
 
@@ -739,7 +753,7 @@ function renderAISummary(){
       : `Kedua outlet menunjukkan performa yang setara pada periode ini.`;
   }
 
-  const narrative = `Dari ${total} respons pada periode terpilih, rata-rata kepuasan pelanggan berada di <b>${avg.toFixed(2)}/5</b> dengan <b>${pctSatisfied.toFixed(0)}%</b> pelanggan memberi skor 4 atau 5. ${lowRatings.length>0 ? `Terdapat <b>${lowRatings.length}</b> respons dengan skor ≤3 (${(lowRatings.length/total*100).toFixed(1)}% dari total) yang layak ditindaklanjuti langsung.` : `Tidak ada respons dengan skor ≤3 pada periode ini — sinyal yang sangat positif.`} ${outletNote} Di <b>Google Maps</b>, kedua outlet rata-rata <b>${mapsAvg.toFixed(2).replace('.',',')}/5</b> dari ${mapsTotal} ulasan (${GMAPS.outlets.map(o=>o.name.replace('Onty Cake & Bakery Outlet ','').replace('Onty Cake Outlet Ke-2 ','')+' '+o.rating.toFixed(1).replace('.',',')).join(', ')}), ${Math.abs(mapsAvg-avg)<0.3?'sejalan dengan hasil survei internal':(mapsAvg<avg?'sedikit di bawah hasil survei internal':'di atas hasil survei internal')}. Tema Maps diambil dari 10 ulasan yang terbuka tanpa login, jadi hanya indikasi.`;
+  const narrative = `Dari ${total} respons pada periode terpilih, rata-rata kepuasan pelanggan berada di <b>${avg.toFixed(2)}/5</b> dengan <b>${pctSatisfied.toFixed(0)}%</b> pelanggan memberi skor 4 atau 5. ${lowRatings.length>0 ? `Terdapat <b>${lowRatings.length}</b> respons dengan skor ≤3 (${(lowRatings.length/total*100).toFixed(1)}% dari total) yang layak ditindaklanjuti langsung.` : `Tidak ada respons dengan skor ≤3 pada periode ini — sinyal yang sangat positif.`} ${outletNote} Di <b>Google Maps</b>, seluruh <b>${mapsTotal}</b> ulasan kedua outlet dianalisis: rata-rata <b>${mapsAvg.toFixed(2).replace('.',',')}/5</b>, ${(mapsFive/mapsTotal*100).toFixed(0)}% bintang 5 dan ${(mapsLow/mapsTotal*100).toFixed(1).replace('.',',')}% bintang ≤3 (${GMAPS.outlets.map(o=>o.short+' '+o.avg.toFixed(2).replace('.',',')).join(', ')}), ${Math.abs(mapsAvg-avg)<0.3?'sejalan dengan hasil survei internal':(mapsAvg<avg?'sedikit di bawah hasil survei internal':'di atas hasil survei internal')}. Ulasan 6 bulan terakhir ${GMAPS.outlets.map(o=>o.short+' '+o.buckets[0].avg.toFixed(2).replace('.',',')).join(' dan ')}${GMAPS.outlets.some(o=>o.buckets[0].avg < o.avg-0.05)?', sedikit di bawah rata-rata keseluruhan masing-masing outlet, jadi perlu dipantau':''}.`;
 
   const posHtml = topPos2.length ? topPos2.map(([label,n])=>`
     <li>${label} <span class="n">(${n} respons${mapsPos[label]?`, termasuk ${mapsPos[label]} dari Maps`:''})</span></li>
@@ -756,7 +770,7 @@ function renderAISummary(){
     "Saran Menu/Varian Baru": "Kumpulkan permintaan varian menu dari pelanggan secara berkala sebagai input pengembangan produk musiman.",
     "Ketepatan Waktu/Pengiriman": "Perkuat estimasi waktu pengiriman/pengambilan pesanan dan beri notifikasi proaktif bila ada potensi keterlambatan.",
     "Kualitas Rasa Produk": "Lakukan quality check berkala pada item yang disebut spesifik (bukan rasa keseluruhan) untuk menjaga konsistensi resep.",
-    "Kebersihan/Fasilitas": "Tinjau kembali SOP kebersihan outlet dan kesiapan fasilitas cadangan (mis. genset) untuk mencegah gangguan operasional.",
+    "Kebersihan/Fasilitas": "Tinjau kesiapan fasilitas toko: tempat sempit dan parkir mobil terbatas adalah keluhan Maps terbanyak (terutama Toba), jadi pasang petunjuk parkir, atur petugas di jam ramai, dan tawarkan pesan lewat WhatsApp saat ramai; tetap jaga SOP kebersihan dan cadangan listrik (genset).",
     "Kesalahan Pesanan/Miskom": "Perbaiki alur komunikasi internal antar kasir, admin, dan pelayan agar tidak terjadi kesalahan pencatatan status pembayaran/pesanan.",
     "Pelayanan Karyawan/Sikap": "Ingatkan tim toko soal sapaan ramah dan tidak mengamati pembeli berlebihan saat memilih produk; jadikan keramahan bagian dari briefing harian.",
     "Ketersediaan Stok": "Atur jadwal produksi/restock agar varian favorit tidak habis di jam ramai, dan beri info stok ke pelanggan.",
@@ -764,12 +778,13 @@ function renderAISummary(){
   };
   const recoList = topIssues.slice(0,4).map(([tag])=>recoMap[tag]).filter(Boolean);
   const mapsReco = [];
-  if(mapsRevs.some(r=>r.tags.includes("Harga/Ongkir"))) mapsReco.push("Tinjau komposisi porsi lauk vs nasi pada menu makan di Onty Resto (disorot di ulasan Maps 4 bintang) agar sepadan dengan harga.");
-  if(mapsRevs.some(r=>r.tags.includes("Kebersihan/Fasilitas"))) mapsReco.push("Pasang info parkir (lokasi dan tarif) di profil Google Maps Imam Bonjol; area parkir terbatas disebut pelanggan.");
-  mapsReco.push("Balas ulasan Google Maps secara rutin, dan ajak pelanggan puas dari survei untuk menulis ulasan; ulasan Toba (486) sudah banyak, Imam Bonjol (146) masih bisa ditambah.");
-  const sikapN = issueCounts["Pelayanan Karyawan/Sikap"]||0;
-  if(sikapN>=2 && !topIssues.slice(0,4).some(([t])=>t==="Pelayanan Karyawan/Sikap")) recoList.push(recoMap["Pelayanan Karyawan/Sikap"] + ` (${sikapN} keluhan terkait sikap karyawan terdeteksi, jumlahnya kecil tapi spesifik.)`);
-  mapsReco.forEach(r=>{ if(recoList.length<6) recoList.push(r); });
+  const tobaO = GMAPS.outlets.find(o=>o.short==='Toba'), ibO = GMAPS.outlets.find(o=>o.short==='Imam Bonjol');
+  const admC = tobaO ? tobaO.concerns.find(c=>/^Sikap/.test(c.label)) : null;
+  if(admC && admC.n>=3) mapsReco.push(`Keluhan sikap/respon admin, kasir, atau pemilik di Toba muncul ±${admC.n} kali di Maps (4 di antaranya bintang 1 dengan balasan pemilik): tinjau percakapan WhatsApp terkait, tetapkan standar sapaan dan respon admin, dan jadikan keramahan bagian dari briefing harian tim toko.`);
+  if(tobaO && ibO){ const rt=tobaO.replies/tobaO.analyzed*100, ri=ibO.replies/ibO.analyzed*100;
+    if(ri-rt>15) mapsReco.push(`Balas lebih banyak ulasan Maps di Toba: baru ${rt.toFixed(0)}% terbalas dibanding ${ri.toFixed(0)}% di Imam Bonjol, terutama ulasan 3 minggu terakhir.`); }
+  if(ibO) mapsReco.push("Imam Bonjol: pastikan stok roti cukup sejak pagi dan tinjau porsi lauk vs harga menu makan (masing-masing disebut pelanggan di ulasan 4 bintang).");
+  mapsReco.forEach(r=>{ if(recoList.length<7) recoList.push(r); });
   if(recoList.length===0) recoList.push("Pertahankan standar layanan saat ini — data menunjukkan tidak ada pola keluhan signifikan pada periode ini.");
 
   el.innerHTML = `
@@ -803,17 +818,33 @@ function renderAll(){
 }
 
 renderFilters();
-const GMAPS = {"asOf": "7 Okt 2026", "outlets": [{"name": "Onty Cake Outlet Ke-2 Imam Bonjol", "addr": "Jl. Imam Bonjol No 47, Pekalongan", "rating": 4.9, "count": 146, "url": "https://www.google.com/maps/place/Onty+Cake+Outlet+Ke-2+Imam+Bonjol/@-6.885074,109.6699721,17z", "reviews": [{"name": "Xyrv Nds", "stars": 5, "when": "3 bulan lalu", "text": "Lokasinya strategis dekat jalan raya, varian menunya juga beranekaragam (aneka roti dengan berbagai toping, puding, salad, cheese cake, kopi dll). Kebetulan kemarin lagi cari bento cake sebelumnya aku tanya dulu by wa dan fast respon, tempatnya luas bisa dine in juga kayaknya, pelayanannya super ramah.", "tags": []}, {"name": "Bagus Satria Wibawa", "stars": 5, "when": "sebulan lalu", "text": "Tempat nya bersih,nyaman. AC dingin. Banyak varian roti dan kue yang harganya sangat sangat terjangkau. Rasanya enak, sangat lembut", "tags": []}, {"name": "Qorina Choirunisa", "stars": 5, "when": "11 bulan lalu", "text": "Tempatnya gak terlalu lebar, tapi sejuk di dalam. Menyajikan berbagai jenis roti, kue, salad, pudding, dan ada menu kopi juga. Bisa untuk dibeli sekedar jajan atau oleh-oleh. Pembayaran bisa cash atau qris. Tempat parkirnya gak terlalu luas, parkir berbayar/ada tukang parkir.", "tags": ["Kebersihan/Fasilitas"]}, {"name": "Anis Susanti", "stars": 4, "when": "2 bulan lalu", "text": "untuk makanan harga segitu porsi lauknya terlalu sedikit gak balance sama nasinya dan rasanya kurang mungkin bisa ditingkatkan lagi kalo bakerynya enak enak", "tags": ["Harga/Ongkir", "Kualitas Rasa Produk"]}, {"name": "Bagus Rizki", "stars": 5, "when": "setahun lalu", "text": "Toko roti dan kue yang cukup lengkap di Pekalongan. Ada berbagai macam kue dan roti, juga ada kue basah. Ada kue ulang tahun juga. Rotinya enak. Harganya terjangkau. Tempatnya bersih dan lokasinya strategis dipinggir jalan raya. Pembayaran bisa tunai atau debet atau qris.", "tags": []}]}, {"name": "Onty Cake & Bakery Outlet Toba", "addr": "Jl. Toba No 39, Pekalongan", "rating": 4.7, "count": 486, "url": "https://www.google.com/maps/place/Onty+Cake+%26+Bakery+Outlet+Toba/@-6.8892116,109.6742852,16z", "reviews": [{"name": "Dian Nur Afita", "stars": 4, "when": "2 bulan lalu", "text": "Andalan kalau ada keluarga yg ultah selalu pesen kue dari onty. Dekorasi cakenya super rapi, cantik, enak dilihatnya, pelayanan dari admin whatsapp sama kurir juga okay.", "tags": []}, {"name": "Firma Nur alini", "stars": 5, "when": "6 bulan lalu", "text": "Di onty layanannya sangat baik, dan banyak sekali varian roti tapi paling kuat suka adalah soft cookies nya", "tags": []}, {"name": "Hanim Amrinada", "stars": 5, "when": "6 bulan lalu", "text": "Rotinya enak enak dan lembut, harganya juga terjangkau toko roti terenak yang ada di pekalongan", "tags": []}, {"name": "Mr. ekasaja", "stars": 4, "when": "3 tahun lalu", "text": "Varian dan pilihannya banyak tersedia. Pelayanan ramah dan komunikatif. Kue ultahnya buat yang butuhnya mini seringkali ready stock buat dibungkus saat itu juga. Buat pencinta promo, pasti akan dapet kepuasan.", "tags": []}, {"name": "YUNI SETIAWATI", "stars": 5, "when": "6 bulan lalu", "text": "Rotinya enak banget! Teksturnya lembut dan rasanya pas, nggak terlalu manis. Pilihannya juga banyak jadi bingung mau beli yang mana. Pelayanannya ramah dan tempatnya bersih. Pasti bakal balik lagi buat beli di sini.", "tags": []}]}]};
+const GMAPS = {"asOf": "7 Okt 2026", "outlets": [{"name": "Onty Cake Outlet Ke-2 Imam Bonjol", "short": "Imam Bonjol", "addr": "Jl. Imam Bonjol No 47, Pekalongan", "url": "https://www.google.com/maps?cid=7968947625190423972", "official": {"rating": 4.9, "count": 146}, "analyzed": 146, "avg": 4.897, "dist": {"1": 2, "2": 0, "3": 0, "4": 7, "5": 137}, "withText": 108, "replies": 133, "buckets": [{"l": "≤6 bulan", "n": 61, "avg": 4.8, "low": 2}, {"l": "6–12 bulan", "n": 76, "avg": 4.93, "low": 1}, {"l": "1–3 tahun", "n": 15, "avg": 4.87, "low": 0}, {"l": ">3 tahun", "n": 1, "avg": 5.0, "low": 0}], "pos": {"Rasa produk enak & lembut": 62, "Pelayanan ramah & sopan": 29, "Tempat nyaman & bersih": 29, "Variasi produk banyak": 26, "Harga terjangkau": 20, "Cocok untuk oleh-oleh & kue ulang tahun": 17}, "tagCounts": {"Harga/Ongkir": 1, "Kualitas Rasa Produk": 2, "Ketersediaan Stok": 1, "Kebersihan/Fasilitas": 1, "Ketepatan Waktu/Pengiriman": 1}, "concerns": [{"label": "Porsi lauk menu makan tidak sebanding dengan harga", "n": 1, "ex": ["porsi lauknya terlalu sedikit gak balance sama nasinya dan rasanya kurang (4★, 2 bulan lalu)"]}, {"label": "Stok roti sedikit di pagi hari setelah renovasi", "n": 1, "ex": ["saya kesana pukul sekitar 10 pagi tapi rotinya sedikit sekali, mungkin belum ready? (4★, 4 bulan lalu)"]}, {"label": "Rasa mentega/telur dan variasi kurang", "n": 1, "ex": ["Rasa masih kurang, terutama mentega dan telur. Semoga kedepan diperbaiki kualitasnya (4★, 2 tahun lalu)"]}, {"label": "Layanan lama", "n": 1, "ex": ["bikinnya lama banget udh hampir satu jam cuma bikin salad sayur (1★, 3 bulan lalu)"]}, {"label": "Tempat tidak terlalu lebar / parkir", "n": 1, "ex": ["Tempatnya gak terlalu lebar... parkirnya gak terlalu luas (5★, 11 bulan lalu)"]}], "low": [{"s": 1, "w": "3 bulan lalu", "t": "Untuk onty cake bikinnya lama banget udh hampir satu jam cuma bikin salad sayur, niat jualan ngga sih sebenernya."}], "lowNoText": 1, "recent": [{"s": 5, "w": "seminggu lalu", "t": "Letak strategis di pinggir jalan raya area Simpang Lima. Pelayanan cepat, ramah, harga terjangkau, roti enak dan lembut, bisa dine in juga."}, {"s": 5, "w": "sebulan lalu", "t": "tempatnya bersih dan nyaman, pelayanannya ramah, rotinya lembut dan enak, banyak variannya dan harga sangat terjangkau, suasananya nyaman banget buat nongkrong bareng temen"}, {"s": 5, "w": "sebulan lalu", "t": "Roti Onty super duper enak.. apalagi roti sobek keju melted.. bikin nagih. Cocok buat oleh oleh juga"}, {"s": 5, "w": "sebulan lalu", "t": "Favorit bolu guling disini, empuk dan enak bs buat oleh oleh"}]}, {"name": "Onty Cake & Bakery Outlet Toba", "short": "Toba", "addr": "Jl. Toba No 39, Pekalongan", "url": "https://www.google.com/maps?cid=6917105918528583953", "official": {"rating": 4.7, "count": 486}, "analyzed": 486, "avg": 4.745, "dist": {"1": 8, "2": 2, "3": 8, "4": 70, "5": 398}, "withText": 263, "replies": 279, "buckets": [{"l": "≤6 bulan", "n": 36, "avg": 4.64, "low": 2}, {"l": "6–12 bulan", "n": 92, "avg": 4.75, "low": 4}, {"l": "1–3 tahun", "n": 118, "avg": 4.84, "low": 1}, {"l": ">3 tahun", "n": 257, "avg": 4.69, "low": 13}], "pos": {"Rasa produk enak & lembut": 150, "Variasi produk banyak": 36, "Pelayanan ramah & sopan": 30, "Harga terjangkau": 28, "Cocok untuk oleh-oleh & kue ulang tahun": 25, "Tempat nyaman & bersih": 24}, "tagCounts": {"Kebersihan/Fasilitas": 13, "Pelayanan Karyawan/Sikap": 7, "Harga/Ongkir": 6, "Ketersediaan Stok": 5, "Kualitas Rasa Produk": 4}, "concerns": [{"label": "Tempat sempit & parkir mobil terbatas", "n": 13, "ex": ["Jika keadaan ramai tidak disarankan memakai mobil, parkiran penuh motor dan parkir mobil sempit (4★, 6 bulan lalu)", "Tokonya kecil jadi kurang nyaman pilih rotinya (4★, 2 tahun lalu)"]}, {"label": "Sikap/respon admin, kasir, atau pemilik", "n": 7, "ex": ["ADMINNYA KACAU, GA NIAT JADI ADMIN (1★, 6 bulan lalu)", "Pelayanan sangat buruk, slow respon dan tidak cekatan (1★, setahun lalu)", "kasir kurang ramah, nada keras ke ibu saya soal kembalian (5★, 5 bulan lalu)", "Pemilik tidak ramah (1★, 4 tahun lalu, 2 ulasan)"]}, {"label": "Harga dianggap mahal", "n": 6, "ex": ["Rotinya enak2, walau harganya sedikit tinggi (4★, 4 tahun lalu)", "Harganya lumayan mahal. Tp kalo rasanya memang mantul (4★, 6 tahun lalu)"]}, {"label": "Antrean, stok habis, jam buka", "n": 5, "ex": ["antri panjang untuk cromboloni viral, saran: adain sehari 2x (5★, 2 tahun lalu)", "Toko kadang buka kadang tutup (2★, 6 tahun lalu)", "kadang kalo datang agak sorean ga kebagian (5★, 6 tahun lalu)"]}, {"label": "Rasa/tekstur item tertentu", "n": 4, "ex": ["Klappertartnya kurang empuk, seperti puding roti (4★, setahun lalu)", "buttercream kue ultah jangan terlalu tebal (5★, setahun lalu)"]}], "low": [{"s": 1, "w": "6 bulan lalu", "t": "ADMINNYA KACAU, GA NIAT JADI ADMIN, MENDING GANTI AJA ADMINNYA"}, {"s": 1, "w": "setahun lalu", "t": "Pelayanan sangat2 buruk, slow respon dan tidak cekatan"}, {"s": 3, "w": "setahun lalu", "t": "Tempat dan kuenya enak. Tapi sayang bad service."}, {"s": 1, "w": "4 tahun lalu", "t": "Pemilik tidak ramah (2 ulasan serupa)"}, {"s": 2, "w": "6 tahun lalu", "t": "Toko tidak bisa dipastikan kadang buka kadang tutup. Bikin kecewa. Untuk roti tidak lengkap macamnya."}, {"s": 1, "w": "6 tahun lalu", "t": "menu sering puding, red velvet, salad lebih mirip cafe ketimbang toko roti"}, {"s": 1, "w": "7 tahun lalu", "t": "Mahal"}], "lowNoText": 7, "recent": [{"s": 5, "w": "2 minggu lalu", "t": "Donat Onty empuk, manisnya pas, dan gak bikin enek. Tempatnya bersih, nyaman, dan estetik untuk nongkrong atau santai."}, {"s": 5, "w": "3 minggu lalu", "t": "bolu gulungnya lembut, enak, dan banyak variasi, pelayanannya sangat baik dan ramah"}, {"s": 5, "w": "3 minggu lalu", "t": "tempatnya nyaman, roti nya enak enak, ramah ramah mba nya"}, {"s": 5, "w": "3 minggu lalu", "t": "Rotinya enak dan fresh, banyak pilihan rasa, teksturnya lembut, harganya cukup terjangkau. Pelayanannya ramah dan tokonya bersih."}]}]};
 function renderGmaps(){
-  document.getElementById('gmNote').textContent = 'Sumber: Google Maps, diambil ' + GMAPS.asOf + '. Rating dan jumlah ulasan adalah total keseluruhan; daftar ulasan hanya 5 yang ditampilkan Google tanpa login, jadi bukan seluruh ulasan.';
-  document.getElementById('gmOutlets').innerHTML = GMAPS.outlets.map(o => `
+  const tot = GMAPS.outlets.reduce((s,o)=>s+o.analyzed,0);
+  document.getElementById('gmNote').innerHTML = 'Sumber: Google Maps (panel ulasan Google), diambil ' + GMAPS.asOf + '. <b>Seluruh ' + tot + ' ulasan dianalisis</b> (' + GMAPS.outlets.map(o=>o.short+' '+o.analyzed+'/'+o.official.count).join(', ') + '). Data statis dan tidak ikut filter periode; waktu ulasan hanya tersedia dalam bentuk relatif (mis. "2 bulan lalu").';
+  const bar = (o,k)=>{ const n=o.dist[k]; const p=n/o.analyzed*100; return `<div class="gm-bar"><span>${k}★</span><div class="gm-track"><div class="gm-fill" style="width:${p.toFixed(1)}%"></div></div><span class="gm-bn">${n} (${p.toFixed(0)}%)</span></div>`; };
+  const stars = s => '★'.repeat(s)+'☆'.repeat(5-s);
+  document.getElementById('gmOutlets').innerHTML = GMAPS.outlets.map(o => {
+    const pos = Object.entries(o.pos).sort((a,b)=>b[1]-a[1]);
+    return `
     <div class="outlet-card gm-card">
       <div class="oname">${escapeHtml(o.name)}</div>
       <div class="oaddr">${escapeHtml(o.addr)}</div>
-      <div class="gm-head"><span class="gm-score">${o.rating.toFixed(1).replace('.',',')}</span><span class="gm-count">dari 5 &middot; ${o.count} ulasan</span></div>
-      <div style="margin:8px 0 6px;"><a class="gm-link" href="${o.url}" target="_blank" rel="noopener">Buka di Google Maps &rarr;</a></div>
-      ${o.reviews.map(r => `<div class="gm-rev"><div class="gm-meta"><span class="gm-st">${'★'.repeat(r.stars)}${'☆'.repeat(5-r.stars)}</span> &middot; ${escapeHtml(r.name)} &middot; ${escapeHtml(r.when)}</div>${escapeHtml(r.text)}</div>`).join('')}
-    </div>`).join('');
+      <div class="gm-head"><span class="gm-score">${o.avg.toFixed(2).replace('.',',')}</span><span class="gm-count">rata-rata dari ${o.analyzed} ulasan &middot; Google menampilkan ${String(o.official.rating).replace('.',',')}</span></div>
+      <div style="margin:6px 0 10px;"><a class="gm-link" href="${o.url}" target="_blank" rel="noopener">Buka di Google Maps &rarr;</a></div>
+      <div class="gm-sub">Sebaran bintang</div>${[5,4,3,2,1].map(k=>bar(o,k)).join('')}
+      <div class="gm-sub">Rata-rata menurut umur ulasan</div>
+      <table class="gm-tbl">${o.buckets.map(b=>`<tr><td>${b.l}</td><td>${b.n} ulasan</td><td>${b.avg.toFixed(2).replace('.',',')}</td><td>${b.low} bintang &le;3</td></tr>`).join('')}</table>
+      <div class="gm-sub">Yang paling sering dipuji (jumlah ulasan)</div>
+      <ul class="gm-ul">${pos.map(([k,n])=>`<li>${k} <span class="n">(${n})</span></li>`).join('')}</ul>
+      <div class="gm-sub">Keluhan &amp; masukan (perkiraan dari kata kunci)</div>
+      <ul class="gm-ul">${o.concerns.map(c=>`<li><b>${escapeHtml(c.label)}</b> <span class="n">(${c.n})</span><div class="gm-ex">${c.ex.map(x=>'&ldquo;'+escapeHtml(x)+'&rdquo;').join('<br>')}</div></li>`).join('')}</ul>
+      <div class="gm-sub">Ulasan bintang rendah (&le;3)${o.lowNoText?` &middot; ${o.lowNoText} lainnya tanpa teks`:''}</div>
+      ${o.low.map(r=>`<div class="gm-rev"><div class="gm-meta"><span class="gm-st">${stars(r.s)}</span> &middot; ${escapeHtml(r.w)}</div>${escapeHtml(r.t)}</div>`).join('')}
+      <div class="gm-sub">Ulasan terbaru</div>
+      ${o.recent.map(r=>`<div class="gm-rev"><div class="gm-meta"><span class="gm-st">${stars(r.s)}</span> &middot; ${escapeHtml(r.w)}</div>${escapeHtml(r.t)}</div>`).join('')}
+      <div class="gm-note2">Balasan pemilik: ${o.replies} dari ${o.analyzed} ulasan (${(o.replies/o.analyzed*100).toFixed(0)}%). Ulasan dengan teks: ${o.withText}.</div>
+    </div>`; }).join('');
 }
 renderGmaps();
 
