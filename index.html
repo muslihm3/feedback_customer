@@ -361,13 +361,14 @@
   </div>
 
   <div class="kpis" id="kpis"></div>
+  <div class="card" id="combined" style="margin-bottom:28px;"></div>
 
   <div class="card ai-card" style="margin-bottom:34px;">
     <div class="ai-head">
       <div class="ai-badge">✦ Analisa AI</div>
       <h2 style="margin:0;">Ringkasan & Rekomendasi</h2>
     </div>
-    <p class="desc">Dibuat otomatis dari pola 299 respons survei Feb–Jul 2026. Diperbarui saat filter periode diubah.</p>
+    <p class="desc">Dibuat otomatis dari respons survei (Google Form) dan ulasan Google Maps. Diperbarui saat filter periode diubah.</p>
     <div id="aiSummary"></div>
   </div>
 
@@ -525,6 +526,21 @@ function renderKPIs(){
       <div class="label">${k.label}</div>
       <div class="value">${k.value}${k.unit?`<small>${k.unit}</small>`:""}</div>
     </div>`).join("");
+  renderCombined(fdata);
+}
+function renderCombined(fdata){
+  const el = document.getElementById("combined"); if(!el) return;
+  const f = x=>x.toFixed(2).replace('.',',');
+  const sub = fdata.filter(d=>true);
+  const rows = [];
+  const sh = {n:sub.length, sum:sub.reduce((s,d)=>s+d.rating,0)};
+  const mp = {n:0, sum:0};
+  GMAPS.outlets.forEach(o=>{ mp.n+=o.analyzed; mp.sum+=o.avg*o.analyzed; });
+  const isIB = d=>/Resto/.test(d.outlet);
+  const per = [["Imam Bonjol (Onty Resto)", sub.filter(isIB), GMAPS.outlets.find(o=>o.short==='Imam Bonjol')],["Toba (Onty Cake & Bakery)", sub.filter(d=>!isIB(d)), GMAPS.outlets.find(o=>o.short==='Toba')]];
+  const line = (label,a,b)=>{ const n=a.n+b.n; return `<tr><td>${label}</td><td>${a.n?f(a.sum/a.n):'-'} <small>(${a.n})</small></td><td>${f(b.sum/b.n)} <small>(${b.n})</small></td><td><b>${n?f((a.sum+b.sum)/n):'-'}</b> <small>(${n})</small></td></tr>`; };
+  const body = per.map(([l,arr,o])=>line(l,{n:arr.length,sum:arr.reduce((s,d)=>s+d.rating,0)},{n:o.analyzed,sum:o.avg*o.analyzed})).join('') + line("<b>Total kedua outlet</b>",sh,mp);
+  el.innerHTML = `<h2 style="margin-top:0">Rating Gabungan: Google Sheet + Google Maps</h2><p class="desc">Rata-rata tertimbang jumlah ulasan (jumlah ulasan dalam kurung). Survei mengikuti filter periode; Maps mencakup seluruh ulasan.</p><table class="gm-tbl" style="width:100%"><tr><th></th><th>Survei (Sheet)</th><th>Google Maps</th><th>Gabungan</th></tr>${body}</table>`;
 }
 
 // ---------- Monthly trend ----------
